@@ -2,6 +2,7 @@ import formidable from "formidable";
 import archiver from "archiver";
 import ExcelJS from "exceljs";
 import fs from "fs";
+import path from "path";
 import { generatePartySheets, generateSigns } from "../../lib/generator";
 
 export const config = {
@@ -9,21 +10,17 @@ export const config = {
 };
 
 function parseForm(req) {
+  // Force uploads into /tmp (works on Vercel serverless)
   const form = formidable({
     multiples: false,
-    fileWriteStreamHandler: () => {
-      const chunks = [];
-      return {
-        write(chunk) { chunks.push(chunk); },
-        end() { this.buffer = Buffer.concat(chunks); },
-      };
-    },
+    keepExtensions: true,
+    uploadDir: "/tmp",
   });
 
   return new Promise((resolve, reject) => {
     form.parse(req, (err, fields, files) => {
-      if (err) reject(err);
-      else resolve({ fields, files, form });
+      if (err) return reject(err);
+      resolve({ fields, files });
     });
   });
 }
@@ -45,24 +42,39 @@ export default async function handler(req, res) {
       return;
     }
 
-    const file = files.book1;
+    // Formidable sometimes returns an array even when multiples:false
+    const fileRaw = files.book1;
+    const file = Array.isArray(fileRaw) ? fileRaw[0] : fileRaw;
+
     if (!file) {
       res.status(400).send("Missing Book1 file");
       return;
     }
 
-    // ✅ Read buffer directly (Vercel-safe)
-    const data = file._writeStream?.buffer;
-    if (!data) {
-      res.status(400).send("Could not read uploaded file.");
+    // Different formidable versions use different keys
+    const uploadPath =
+      file.filepath || file.path || file.tempFilePath || file?.toJSON?.().filepath;
+
+    if (!uploadPath) {
+      res.status(400).send(
+        "Upload did not include a readable file path (Formidable)."
+      );
       return;
     }
 
+    const data = await fs.promises.readFile(uploadPath);
+
+    // Load Excel from buffer
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(data);
 
     const sheet = workbook.worksheets[0];
+    if (!sheet) {
+      res.status(400).send("No worksheet found in Book1.");
+      return;
+    }
 
+    // Convert first sheet to JSON rows using header row 1
     const headers = [];
     sheet.getRow(1).eachCell((cell, col) => {
       headers[col - 1] = String(cell.value || "").trim();
@@ -79,13 +91,25 @@ export default async function handler(req, res) {
       if (Object.keys(obj).length) rows.push(obj);
     });
 
-    const partyFiles = await generatePartySheets(rows, "templates");
-    const { tagFiles, stompFiles } = await generateSigns(rows, "templates");
+    if (!rows.length) {
+      res.status(400).send("No rows found in Book1 (after header row).");
+      return;
+    }
+
+    // IMPORTANT: in our generator.js we resolve templates with process.cwd()
+    const templatesDir = path.join(process.cwd(), "templates");
+
+    const partyFiles = await generatePartySheets(rows, templatesDir);
+    const { tagFiles, stompFiles } = await generateSigns(rows, templatesDir);
 
     res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", 'attachment; filename="TagX_Output.zip"');
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="TagX_Output.zip"'
+    );
 
-    const archive = archiver("zip");
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", (err) => res.status(500).send(String(err)));
     archive.pipe(res);
 
     for (const f of partyFiles) archive.append(f.buffer, { name: f.name });
@@ -94,7 +118,9 @@ export default async function handler(req, res) {
 
     await archive.finalize();
 
+    // Optional cleanup (not required, but tidy)
+    fs.promises.unlink(uploadPath).catch(() => {});
   } catch (e) {
-    res.status(500).send(`Generation failed: ${e.message}`);
+    res.status(500).send(`Generation failed: ${e?.message || e}`);
   }
 }
