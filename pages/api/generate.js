@@ -1,5 +1,4 @@
 import formidable from "formidable";
-import path from "path";
 import archiver from "archiver";
 import ExcelJS from "exceljs";
 import fs from "fs";
@@ -10,11 +9,21 @@ export const config = {
 };
 
 function parseForm(req) {
-  const form = formidable({ multiples: false });
+  const form = formidable({
+    multiples: false,
+    fileWriteStreamHandler: () => {
+      const chunks = [];
+      return {
+        write(chunk) { chunks.push(chunk); },
+        end() { this.buffer = Buffer.concat(chunks); },
+      };
+    },
+  });
+
   return new Promise((resolve, reject) => {
     form.parse(req, (err, fields, files) => {
-      if (err) return reject(err);
-      resolve({ fields, files });
+      if (err) reject(err);
+      else resolve({ fields, files, form });
     });
   });
 }
@@ -42,26 +51,18 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Read uploaded file as a Buffer (works reliably on Vercel)
-    const uploadPath = file.filepath || file.path;
-    if (!uploadPath) {
-      res.status(400).send("Upload did not include a readable file path.");
+    // ✅ Read buffer directly (Vercel-safe)
+    const data = file._writeStream?.buffer;
+    if (!data) {
+      res.status(400).send("Could not read uploaded file.");
       return;
     }
 
-    const data = await fs.promises.readFile(uploadPath);
-
-    // Load Excel from buffer
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(data);
 
     const sheet = workbook.worksheets[0];
-    if (!sheet) {
-      res.status(400).send("No worksheet found in Book1.");
-      return;
-    }
 
-    // Convert sheet to JSON rows using header row (assumes row 1 = headers)
     const headers = [];
     sheet.getRow(1).eachCell((cell, col) => {
       headers[col - 1] = String(cell.value || "").trim();
@@ -78,28 +79,13 @@ export default async function handler(req, res) {
       if (Object.keys(obj).length) rows.push(obj);
     });
 
-    if (!rows.length) {
-      res.status(400).send("No rows found in Book1 (after header row).");
-      return;
-    }
-
-    const templatesDir = path.join(process.cwd(), "templates");
-
-    const partyFiles = await generatePartySheets(rows, templatesDir);
-    const { tagFiles, stompFiles } = await generateSigns(rows, templatesDir);
+    const partyFiles = await generatePartySheets(rows, "templates");
+    const { tagFiles, stompFiles } = await generateSigns(rows, "templates");
 
     res.setHeader("Content-Type", "application/zip");
-    res.setHeader(
-      "Content-Disposition",
-      'attachment; filename="TagX_Output.zip"'
-    );
+    res.setHeader("Content-Disposition", 'attachment; filename="TagX_Output.zip"');
 
-    const archive = archiver("zip", { zlib: { level: 9 } });
-
-    archive.on("error", (err) => {
-      res.status(500).send(String(err));
-    });
-
+    const archive = archiver("zip");
     archive.pipe(res);
 
     for (const f of partyFiles) archive.append(f.buffer, { name: f.name });
@@ -107,7 +93,8 @@ export default async function handler(req, res) {
     for (const f of stompFiles) archive.append(f.buffer, { name: f.name });
 
     await archive.finalize();
+
   } catch (e) {
-    res.status(500).send(`Generation failed: ${e?.message || e}`);
+    res.status(500).send(`Generation failed: ${e.message}`);
   }
 }
