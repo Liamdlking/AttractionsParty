@@ -22,6 +22,7 @@ export default function Home() {
         const txt = await res.text();
         throw new Error(txt || "Generation failed");
       }
+
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -39,53 +40,126 @@ export default function Home() {
   }
 
   return (
-  <div
-    style={{
-      minHeight: "100vh",
-      backgroundImage: "url('/bg.jpg')",
-      backgroundSize: "cover",
-      backgroundPosition: "center"
-    }}
-  >
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundImage: "url('/bg.jpg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      <div style={{ maxWidth: 820, margin: "0 auto", padding: 32 }}>
+        <div
+          style={{
+            background: "rgba(18, 26, 51, 0.88)",
+            border: "1px solid #23305e",
+            borderRadius: 16,
+            padding: 22,
+            boxShadow: "0 10px 30px rgba(0,0,0,.25)",
+            color: "#e8ecff",
+            fontFamily:
+              "system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
+          }}
+        >
+          <h1 style={{ fontSize: 22, margin: "0 0 8px" }}>
+            Upload Book1 and download the completed files
+          </h1>
+          <p style={{ margin: "0 0 14px", color: "#c9d2ff", lineHeight: 1.4 }}>
+            Generates party sheets (per date), Tag X signs (4 per page), and
+            Stompers signs (2 per page).
+          </p>
 
-
-          {error ? <p style={{color:"#ffb4b4"}}><b>Error:</b> {error}</p> : null}
+          {error ? (
+            <p style={{ color: "#ffb4b4" }}>
+              <b>Error:</b> {error}
+            </p>
+          ) : null}
 
           <form onSubmit={onSubmit}>
-            <label style={{display:"block", margin:"14px 0 6px", color:"#c9d2ff"}}>Book1 file (.xlsx)</label>
+            <label
+              style={{
+                display: "block",
+                margin: "14px 0 6px",
+                color: "#c9d2ff",
+              }}
+            >
+              Book1 file (.xlsx / .xls / .csv)
+            </label>
             <input
               type="file"
               accept=".xlsx,.xls,.csv"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
               required
-              style={{width:"100%", padding:12, borderRadius:12, border:"1px solid #2a3970", background:"#0e1630", color:"#e8ecff"}}
+              style={{
+                width: "100%",
+                padding: 12,
+                borderRadius: 12,
+                border: "1px solid #2a3970",
+                background: "#0e1630",
+                color: "#e8ecff",
+              }}
             />
 
-            <label style={{display:"block", margin:"14px 0 6px", color:"#c9d2ff"}}>Password (optional)</label>
+            <label
+              style={{
+                display: "block",
+                margin: "14px 0 6px",
+                color: "#c9d2ff",
+              }}
+            >
+              Password (optional)
+            </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Leave blank if not enabled"
-              style={{width:"100%", padding:12, borderRadius:12, border:"1px solid #2a3970", background:"#0e1630", color:"#e8ecff"}}
+              style={{
+                width: "100%",
+                padding: 12,
+                borderRadius: 12,
+                border: "1px solid #2a3970",
+                background: "#0e1630",
+                color: "#e8ecff",
+              }}
             />
 
             <button
               type="submit"
               disabled={busy}
-              style={{marginTop:16, width:"100%", padding:"12px 14px", border:0, borderRadius:12, background:"#6d5efc", color:"white", fontWeight:700, cursor:"pointer", opacity: busy ? 0.7 : 1}}
+              style={{
+                marginTop: 16,
+                width: "100%",
+                padding: "12px 14px",
+                border: 0,
+                borderRadius: 12,
+                background: "#6d5efc",
+                color: "white",
+                fontWeight: 700,
+                cursor: "pointer",
+                opacity: busy ? 0.7 : 1,
+              }}
             >
               {busy ? "Generating…" : "Generate ZIP"}
             </button>
           </form>
 
-          <div style={{fontSize:12, color:"#9aa5db", marginTop:14}}>
-            Admin: set <code style={{background:"#0e1630", padding:"2px 6px", borderRadius:8, border:"1px solid #2a3970"}}>APP_PASSWORD</code> env var to enable password protection.
+          <div style={{ fontSize: 12, color: "#9aa5db", marginTop: 14 }}>
+            Admin: set{" "}
+            <code
+              style={{
+                background: "#0e1630",
+                padding: "2px 6px",
+                borderRadius: 8,
+                border: "1px solid #2a3970",
+              }}
+            >
+              APP_PASSWORD
+            </code>{" "}
+            env var to enable password protection.
           </div>
         </div>
       </div>
     </div>
-</div>
-
   );
 }
