@@ -53,7 +53,7 @@ export default function Home() {
             <label style={{display:"block", margin:"14px 0 6px", color:"#c9d2ff"}}>Book1 file (.xlsx)</label>
             <input
               type="file"
-              accept=".xlsx"
+              accept=".xlsx,.xls,.csv"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
               required
               style={{width:"100%", padding:12, borderRadius:12, border:"1px solid #2a3970", background:"#0e1630", color:"#e8ecff"}}
