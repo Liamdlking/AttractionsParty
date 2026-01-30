@@ -1,8 +1,8 @@
 import formidable from "formidable";
 import archiver from "archiver";
-import ExcelJS from "exceljs";
 import fs from "fs";
 import path from "path";
+import * as XLSX from "xlsx";
 import { generatePartySheets, generateSigns } from "../../lib/generator";
 
 export const config = {
@@ -10,7 +10,6 @@ export const config = {
 };
 
 function parseForm(req) {
-  // Force uploads into /tmp (works on Vercel serverless)
   const form = formidable({
     multiples: false,
     keepExtensions: true,
@@ -36,67 +35,57 @@ export default async function handler(req, res) {
   try {
     const { fields, files } = await parseForm(req);
 
+    // Optional password
     const password = (fields.password || "").toString().trim();
     if (required && password !== required) {
       res.status(401).send("Invalid password");
       return;
     }
 
-    // Formidable sometimes returns an array even when multiples:false
+    // Formidable can return array even with multiples:false
     const fileRaw = files.book1;
     const file = Array.isArray(fileRaw) ? fileRaw[0] : fileRaw;
 
     if (!file) {
-      res.status(400).send("Missing Book1 file");
+      res.status(400).send("Missing upload (book1)");
       return;
     }
 
-    // Different formidable versions use different keys
     const uploadPath =
       file.filepath || file.path || file.tempFilePath || file?.toJSON?.().filepath;
 
     if (!uploadPath) {
-      res.status(400).send(
-        "Upload did not include a readable file path (Formidable)."
-      );
+      res.status(400).send("Upload did not include a readable file path.");
       return;
     }
 
     const data = await fs.promises.readFile(uploadPath);
 
-    // Load Excel from buffer
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(data);
+    // ✅ Reads XLSX, XLS, CSV
+    const workbook = XLSX.read(data, {
+      type: "buffer",
+      cellDates: true,
+    });
 
-    const sheet = workbook.worksheets[0];
+    const sheetName = workbook.SheetNames?.[0];
+    const sheet = workbook.Sheets?.[sheetName];
+
     if (!sheet) {
-      res.status(400).send("No worksheet found in Book1.");
+      res.status(400).send("No sheet found in uploaded file.");
       return;
     }
 
-    // Convert first sheet to JSON rows using header row 1
-    const headers = [];
-    sheet.getRow(1).eachCell((cell, col) => {
-      headers[col - 1] = String(cell.value || "").trim();
-    });
-
-    const rows = [];
-    sheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return;
-      const obj = {};
-      row.eachCell((cell, col) => {
-        const key = headers[col - 1];
-        if (key) obj[key] = cell.value;
-      });
-      if (Object.keys(obj).length) rows.push(obj);
+    // Convert to rows using header row 1
+    const rows = XLSX.utils.sheet_to_json(sheet, {
+      defval: "",
+      raw: true, // keep dates/serials as-is; generator handles them
     });
 
     if (!rows.length) {
-      res.status(400).send("No rows found in Book1 (after header row).");
+      res.status(400).send("No data rows found (after header row).");
       return;
     }
 
-    // IMPORTANT: in our generator.js we resolve templates with process.cwd()
     const templatesDir = path.join(process.cwd(), "templates");
 
     const partyFiles = await generatePartySheets(rows, templatesDir);
@@ -109,7 +98,10 @@ export default async function handler(req, res) {
     );
 
     const archive = archiver("zip", { zlib: { level: 9 } });
-    archive.on("error", (err) => res.status(500).send(String(err)));
+    archive.on("error", (err) => {
+      res.status(500).send(String(err));
+    });
+
     archive.pipe(res);
 
     for (const f of partyFiles) archive.append(f.buffer, { name: f.name });
@@ -118,7 +110,7 @@ export default async function handler(req, res) {
 
     await archive.finalize();
 
-    // Optional cleanup (not required, but tidy)
+    // tidy up temp upload
     fs.promises.unlink(uploadPath).catch(() => {});
   } catch (e) {
     res.status(500).send(`Generation failed: ${e?.message || e}`);
