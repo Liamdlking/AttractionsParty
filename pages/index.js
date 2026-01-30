@@ -62,7 +62,7 @@ export default function Home() {
           }}
         >
           <h1 style={{ fontSize: 22, margin: "0 0 8px" }}>
-            Upload Book1 and download the completed files
+            Export the bookings from Party enquiry system - Delete the dates you dont want generating - upload the document below. 
           </h1>
           <p style={{ margin: "0 0 14px", color: "#c9d2ff", lineHeight: 1.4 }}>
             Generates party sheets (per date), Tag X signs (4 per page), and
