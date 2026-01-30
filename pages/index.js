@@ -39,13 +39,15 @@ export default function Home() {
   }
 
   return (
-    <div style={{minHeight:"100vh", background:"#0b1020", color:"#e8ecff", fontFamily:"system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif"}}>
-      <div style={{maxWidth:820, margin:"0 auto", padding:32}}>
-        <div style={{background:"#121a33", border:"1px solid #23305e", borderRadius:16, padding:22, boxShadow:"0 10px 30px rgba(0,0,0,.25)"}}>
-          <h1 style={{fontSize:22, margin:"0 0 8px"}}>Upload Book1 and download the completed files</h1>
-          <p style={{margin:"0 0 14px", color:"#c9d2ff", lineHeight:1.4}}>
-            Generates party sheets (per date), Tag X signs (4 per page), and Stompers signs (2 per page).
-          </p>
+  <div
+    style={{
+      minHeight: "100vh",
+      backgroundImage: "url('/bg.jpg')",
+      backgroundSize: "cover",
+      backgroundPosition: "center"
+    }}
+  >
+
 
           {error ? <p style={{color:"#ffb4b4"}}><b>Error:</b> {error}</p> : null}
 
