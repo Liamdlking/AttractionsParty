@@ -27,7 +27,7 @@ export default function Home() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "TagX_Output.zip";
+      a.download = "Partyinfo.zip";
       document.body.appendChild(a);
       a.click();
       a.remove();
